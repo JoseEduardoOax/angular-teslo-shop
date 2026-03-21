@@ -5,6 +5,7 @@ import { environment } from "src/environments/environment";
 import { AuthResponse } from "@auth/interfaces/auth-response.interface";
 import { catchError, map, Observable, of, tap } from "rxjs";
 import { rxResource } from "@angular/core/rxjs-interop";
+import { TokenStatus } from "./interfaces/token.interface";
 
 type AuthStatus = 'checking' | 'authenticated' | 'not-authenticated';
 const baseUrl = environment.baseUrl;
@@ -16,6 +17,12 @@ export class AuthService {
   private _token = signal<string | null>(localStorage.getItem('token'));
 
   private http = inject(HttpClient);
+
+  private tokenStatus = signal<TokenStatus | null>(null);
+  private lastCheck = signal<number>(0);
+  private checkInProgress = signal<boolean>(false);
+
+  private readonly CACHE_DURATION = 5 * 60 * 1000;
 
   checkStatusResource = rxResource({
     loader: () => this.checkStatus(),
@@ -31,6 +38,8 @@ export class AuthService {
 
   user = computed<User | null>(() => this._user());
   token = computed(this._token);
+
+  isAdmin = computed(() => this._user()?.roles.includes('admin') ?? false);
 
   login(email: string, password: string): Observable<boolean> {
     return this.http.post<AuthResponse>(`${baseUrl}/auth/login`, {
@@ -49,6 +58,25 @@ export class AuthService {
       return of(false);
     }
 
+    // const now = Date.now();
+    //
+    // if ((now - this.lastCheck()) > this.CACHE_DURATION) {
+    //   this.logout();
+    //   return of(false);
+    // }
+
+    // if (this.checkInProgress()) {
+    //   this.waitForCurrentCheck();
+    //   if (this.tokenStatus() != 'valid') {
+    //     this.logout();
+    //     return of(false);
+    //   }
+    //
+    //   return of(true);
+    // }
+    //
+    // this.checkInProgress.set(true);
+
     return this.http.get<AuthResponse>(`${baseUrl}/auth/check-status`, {
       // headers: {
       //   Authorization: `Bearer ${token}`,
@@ -57,6 +85,18 @@ export class AuthService {
       map((resp) => this.handleAuthSuccess(resp)),
       catchError((error: any) => this.handleAuthError(error))
     );
+  }
+
+  private waitForCurrentCheck(): Observable<TokenStatus> {
+    return new Observable(subscriber => {
+      const interval = setInterval(() => {
+        if (!this.checkInProgress()) {
+          clearInterval(interval);
+          subscriber.next(this.tokenStatus() || 'expired');
+          subscriber.complete();
+        }
+      }, 100);
+    });
   }
 
   logout() {
@@ -84,6 +124,10 @@ export class AuthService {
     this._authStatus.set('authenticated');
     this._token.set(token)
 
+    this.tokenStatus.set('valid');
+    this.lastCheck.set(Date.now());
+    this.checkInProgress.set(false);
+
     localStorage.setItem('token', token)
 
     return true;
@@ -91,6 +135,11 @@ export class AuthService {
 
   private handleAuthError(error: any) {
     this.logout();
+
+    this.tokenStatus.set('expired');
+    this.lastCheck.set(Date.now());
+    this.checkInProgress.set(false);
+
     return of(false);
   }
 }

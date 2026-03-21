@@ -23,6 +23,9 @@
       "@store-front/*": [
         "./src/app/store-front/*"
       ],
+      "@utils/*": [
+        "./src/app/utils/*"
+      ],
     },
     "outDir": "./dist/out-tsc",
     "strict": true,

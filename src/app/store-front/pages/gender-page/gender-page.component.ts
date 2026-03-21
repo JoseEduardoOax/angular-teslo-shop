@@ -17,7 +17,10 @@ export class GenderPageComponent {
   productsService = inject(ProductsService);
   paginationService = inject(PaginationService)
   route = inject(ActivatedRoute);
-  gender = toSignal(this.route.params.pipe(map(({ gender }) => gender)))
+  // gender = toSignal(this.route.params.pipe(map(({ gender }) => gender)))
+  gender = toSignal(this.route.paramMap.pipe(
+    map(paramMap => paramMap.get('gender') ?? '')
+  ))
 
   productsResource = rxResource({
     request: () => ({
