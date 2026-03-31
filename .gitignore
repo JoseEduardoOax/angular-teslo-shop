@@ -42,3 +42,5 @@ testem.log
 Thumbs.db
 
 workspace.sh
+
+/src/environments/environment.ts
